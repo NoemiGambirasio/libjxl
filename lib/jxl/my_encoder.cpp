@@ -1,5 +1,5 @@
-#include "lib/jxl/image_bundle.h"
-#include "lib/jxl/enc_frame.h"    
+#include "image_bundle.h"
+#include "../include/jxl/encode.h"  
 #include <vector>
 #include <string>
 #include <fstream>
@@ -7,98 +7,58 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 
-jxl::ImageBundle LoadPNGToImageBundle(const char* filename, JxlMemoryManager* memory_manager) {
-    int w, h, c;
-    unsigned char* data = stbi_load(filename, &w, &h, &c, 4); // force RGBA
-    if (!data) throw std::runtime_error("Failed to load PNG");
+void CustomEncodeFrame(int downscale_factor, JxlEncoder* encoder)
+{
+    auto frame_settings = JxlEncoderFrameSettingsCreate(encoder, NULL);
 
-    jxl::ImageMetadata metadata; // set width, height, extra channels etc. if needed
-    jxl::ImageBundle ib(memory_manager, &metadata);
+	// sets the option to upscale at decode (use for low_res)
+	JxlEncoderFrameSettingsSetOption(frame_settings, JXL_ENC_FRAME_SETTING_RESAMPLING, downscale_factor);
+    if (downscale_factor > 1) {
+        JxlEncoderFrameSettingsSetOption(frame_settings, JXL_ENC_FRAME_SETTING_ALREADY_DOWNSAMPLED, 1);
+    }	
 
-    auto color = jxl::Image3F::Create(memory_manager, w, h).value();
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            int idx = (y * w + x) * 4;
-            color.Plane(0).Row(y)[x] = data[idx + 0] / 255.0f; // R
-            color.Plane(1).Row(y)[x] = data[idx + 1] / 255.0f; // G
-            color.Plane(2).Row(y)[x] = data[idx + 2] / 255.0f; // B
-        }
-    }
+	/* create JxlPixelFormat object and set right values */
 
-    ib.SetFromImage(std::move(color), jxl::ColorEncoding::SRGB());
-    stbi_image_free(data);
-    return ib;
+	// init the JxlBlendInfo
+	JxlBlendInfo *blend_info = new JxlBlendInfo;
+	JxlEncoderInitBlendInfo(blend_info);
+    std::cout << "JxlBlendInfo initialized." << std::endl;
+	
+    blend_info->blendmode = JxlBlendMode::JXL_BLEND_ADD;
+    
+
+	// init JxlFrameHeader
+	JxlFrameHeader *frame_header = new JxlFrameHeader;
+	JxlEncoderInitFrameHeader(frame_header);
+    std::cout << "JxlFrameHeader initialized." << std::endl;
+
+	frame_header->layer_info.blend_info = *blend_info;
+	/* set frame header */
+
+	// set frame_header as the header to use for the current frame
+	JxlEncoderSetFrameHeader(frame_settings, frame_header);
+    JxlEncoderSetFrameLossless(frame_settings, 1);
 }
 
+int main()
+{
+    JxlEncoder* encoder = JxlEncoderCreate(nullptr);
 
-bool LoadPNGToImageBundle(const std::string& filename, ImageBundle& img_bundle) {
-    JxlMemoryManager* memory_manager = img_bundle.memory_manager();
-    try {
-        ImageBundle bundle = LoadPngIntoImageBundle(filename, memory_manager);
-        img_bundle = std::move(bundle);
-        return true;
-    } catch (const std::exception& e) {
-        std::cerr << "Error loading PNG: " << e.what() << std::endl;
-        return false;
-    }
-}
+    JxlBasicInfo *info = new JxlBasicInfo;
+    JxlEncoderInitBasicInfo(info);
 
-// Example usage of encoding two images as one JXL file
-
-bool EncodeTwoImagesAsOneJXL(const std::string& png1, const std::string& png2,
-                             const std::string& out_filename) {
-    using namespace jxl;
-
-    ThreadPool* pool = nullptr; // Use default, or create with RunOnPool
-    CompressParams cparams;
-
-    JxlMemoryManager memory_manager;
-    CodecMetadata metadata;
-    ImageBundle img1(&memory_manager, &metadata.m);
-    ImageBundle img2(&memory_manager, &metadata.m);
-    BitWriter writer(&memory_manager);
+    info->have_container = 0;
+    info->xsize = 800;
+    info->ysize = 600;
+    info->bits_per_sample = 8;
+    info->exponent_bits_per_sample = 0;
+    info->num_color_channels = 3;
+    info->num_extra_channels = 0;
+    info->alpha_bits = 0;
+    
 
 
-    if (!LoadPNGToImageBundle(png1, img1) || !LoadPNGToImageBundle(png2, img2)) {
-        std::cerr << "Failed to load PNGs\n";
-        return false;
-    }
+    JxlEncoderSetBasicInfo(encoder, info);
 
-    // Step 1: Encode first image
-    FrameInfo fi1;
-    fi1.blend = false;
-    fi1.is_last = false;
 
-    if (!EncodeFrame(&memory_manager, cparams, fi1, &metadata,
-                     img1, JxlCmsInterface(), pool, &writer, nullptr)) {
-        std::cerr << "Failed to encode first frame\n";
-        return false;
-    }
-
-    // Step 2: Encode second image, adding it
-    FrameInfo fi2;
-    fi2.blend = true;
-    fi2.blendmode = BlendMode::kAdd; // <- addition
-    fi2.is_last = true;
-
-    if (!EncodeFrame(&memory_manager, cparams, fi2, &metadata,
-                     img2, JxlCmsInterface(), pool, &writer, nullptr)) {
-        std::cerr << "Failed to encode second frame\n";
-        return false;
-    }
-
-    // Write to file
-    std::ofstream out(out_filename, std::ios::binary);
-    if (!out) return false;
-    auto data = writer.GetSpan();
-    out.write(reinterpret_cast<const char*>(data.data()), data.size());
-    return true;
-}
-
-int main() {
-    if (EncodeTwoImagesAsOneJXL("../../low_res.png", "../../high_res.png", "result.jxl")) {
-        std::cout << "Successfully encoded added image.jxl\n";
-    } else {
-        std::cerr << "Failed to encode\n";
-    }
 }
