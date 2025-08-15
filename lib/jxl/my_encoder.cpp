@@ -4,29 +4,36 @@
 #include <iostream>
 
 int main() {
-    const size_t width = 256;
-    const size_t height = 256;
+    const size_t width = 1024;
+    const size_t height = 1024;
     const size_t num_channels = 3;
-    const size_t bytes_per_pixel = 1;
+    const size_t bytes_per_pixel = 4;
     const size_t frame_bytes = width * height * num_channels * bytes_per_pixel;
 
     // Allocate two frames: red and green
-    std::vector<uint8_t> frame1(frame_bytes);
-    std::vector<uint8_t> frame2(frame_bytes);
+    std::vector<float> frame1(frame_bytes / 4);
+    std::vector<float> frame2(frame_bytes);
 
     // Fill frame1 with red
-    for (size_t i = 0; i < width * height; ++i) {
-        frame1[i * 3 + 0] = 255; // R
-        frame1[i * 3 + 1] = 0;   // G
+    for (size_t i = 0; i < width * height / 4; ++i) {
+        frame1[i * 3 + 0] = -0.02; // X
+        frame1[i * 3 + 1] = 1.0;   // Y
         frame1[i * 3 + 2] = 0;   // B
+    }
+
+    for (size_t x = width / 6; x < width / 3; ++x) {
+        for (size_t y = height / 6; y < height / 3; ++y) {
+            frame1[y * width / 2 * 3 + x * 3 + 0] = 0.0f; // X
+        }
     }
 
     // Fill frame2 with green
     for (size_t i = 0; i < width * height; ++i) {
-        frame2[i * 3 + 0] = 0;
-        frame2[i * 3 + 1] = 255;
-        frame2[i * 3 + 2] = 0;
+        frame2[i * 3 + 0] = 0; // X
+        frame2[i * 3 + 1] = 0; // Y
+        frame2[i * 3 + 2] = 0.7; // B
     }
+    
 
     // Create encoder
     JxlEncoder* enc = JxlEncoderCreate(nullptr);
@@ -50,12 +57,13 @@ int main() {
     JxlEncoderSetColorEncoding(enc, &color_encoding);
 
     // Pixel format
-    JxlPixelFormat pixel_format = {num_channels, JXL_TYPE_UINT8, JXL_NATIVE_ENDIAN, 0};
+    JxlPixelFormat pixel_format = {num_channels, JXL_TYPE_FLOAT, JXL_NATIVE_ENDIAN, 0};
 
     // Add first frame
     {
         JxlEncoderFrameSettings* frame_settings = JxlEncoderFrameSettingsCreate(enc, nullptr);
         JxlEncoderFrameSettingsSetOption(frame_settings, JXL_ENC_FRAME_SETTING_RESAMPLING, 2);
+        JxlEncoderFrameSettingsSetOption(frame_settings, JXL_ENC_FRAME_SETTING_ALREADY_DOWNSAMPLED, 1);
         JxlEncoderAddImageFrame(frame_settings, &pixel_format,
                                 frame1.data(), frame1.size());
     }
@@ -63,18 +71,18 @@ int main() {
     // Add second frame
     {
         JxlEncoderFrameSettings* frame_settings = JxlEncoderFrameSettingsCreate(enc, nullptr);
-        JxlBlendInfo *blend_info = new JxlBlendInfo;
-        JxlEncoderInitBlendInfo(blend_info);
-        std::cout << "JxlBlendInfo initialized." << std::endl;
+        //JxlBlendInfo *blend_info = new JxlBlendInfo;
+        //JxlEncoderInitBlendInfo(blend_info);
+        //std::cout << "JxlBlendInfo initialized." << std::endl;
         
-        blend_info->blendmode = JxlBlendMode::JXL_BLEND_ADD;
+        //blend_info->blendmode = JxlBlendMode::JXL_BLEND_ADD;
         
         // init JxlFrameHeader
         JxlFrameHeader *frame_header = new JxlFrameHeader;
         JxlEncoderInitFrameHeader(frame_header);
         std::cout << "JxlFrameHeader initialized." << std::endl;
 
-        frame_header->layer_info.blend_info = *blend_info;
+        //frame_header->layer_info.blend_info = *blend_info;
         /* set frame header */
 
         // set frame_header as the header to use for the current frame

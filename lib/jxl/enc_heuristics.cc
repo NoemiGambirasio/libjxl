@@ -904,7 +904,7 @@ Status ComputeARHeuristics(const FrameHeader& frame_header,
   float clamped_butteraugli = std::min(5.0f, cparams.butteraugli_distance);
   if (cparams.butteraugli_distance < kMinButteraugliForDynamicAR ||
       cparams.speed_tier > SpeedTier::kWombat ||
-      frame_header.loop_filter.epf_iters == 0) {
+      frame_header.loop_filter.epf_iters == 0 || true) {
     FillPlane(static_cast<uint8_t>(4), &epf_sharpness, Rect(epf_sharpness));
     return true;
   }
@@ -1054,14 +1054,17 @@ Status LossyFrameHeuristics(const FrameHeader& frame_header,
     image_features.splines.SubtractFrom(opsin);
   }
 
+  if (!cparams.already_downsampled) {
+    JXL_RETURN_IF_ERROR(
+        FindBestPatchDictionary(*opsin, enc_state, cms, pool, aux_out));
+  }
+
   // Find and subtract patches/dots.
   if (!streaming_mode &&
       ApplyOverride(cparams.patches,
                     cparams.speed_tier <= SpeedTier::kSquirrel)) {
-    JXL_RETURN_IF_ERROR(
-        FindBestPatchDictionary(*opsin, enc_state, cms, pool, aux_out));
-    JXL_RETURN_IF_ERROR(
-        PatchDictionaryEncoder::SubtractFrom(image_features.patches, opsin));
+    //JXL_RETURN_IF_ERROR(
+    //    PatchDictionaryEncoder::SubtractFrom(image_features.patches, opsin));
   }
 
   const float quant_dc = InitialQuantDC(cparams.butteraugli_distance);

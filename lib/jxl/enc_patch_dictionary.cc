@@ -609,7 +609,9 @@ Status FindBestPatchDictionary(const Image3F& opsin,
                                PassesEncoderState* JXL_RESTRICT state,
                                const JxlCmsInterface& cms, ThreadPool* pool,
                                AuxOut* aux_out, bool is_xyb) {
-  JXL_ASSIGN_OR_RETURN(
+
+#if 0
+                              JXL_ASSIGN_OR_RETURN(
       std::vector<PatchInfo> info,
       FindTextLikePatches(state->cparams, opsin, state, pool, aux_out, is_xyb));
   JxlMemoryManager* memory_manager = opsin.memory_manager();
@@ -794,7 +796,22 @@ Status FindBestPatchDictionary(const Image3F& opsin,
   PatchDictionaryEncoder::SetPositions(
       &state->shared.image_features.patches, std::move(positions),
       std::move(pref_positions), std::move(blendings), num_ec + 1);
-  return true;
+#endif
+
+
+  std::vector<PatchPosition> positions;
+  std::vector<PatchReferencePosition> pref_positions;
+  std::vector<PatchBlending> blendings;
+
+  positions.push_back(PatchPosition{0, 0, 0});
+  pref_positions.push_back(PatchReferencePosition{
+    1, 0, 0, 
+      state->shared.frame_dim.xsize, state->shared.frame_dim.ysize});
+  blendings.push_back({PatchBlendMode::kAdd, 0, false});
+  PatchDictionaryEncoder::SetPositions(
+      &state->shared.image_features.patches, std::move(positions),
+      std::move(pref_positions), std::move(blendings), 1);
+      return true;
 }
 
 Status RoundtripPatchFrame(Image3F* reference_frame,

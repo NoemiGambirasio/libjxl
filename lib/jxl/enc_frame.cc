@@ -444,6 +444,7 @@ Status MakeFrameHeader(size_t xsize, size_t ysize,
   frame_header->extra_channel_upsampling.resize(extra_channels.size(),
                                                 cparams.ec_resampling);
   frame_header->save_as_reference = frame_info.save_as_reference;
+  frame_header->save_before_color_transform = frame_info.save_before_color_transform;
 
   // Set blending-related information.
   if (frame_info.blend || frame_header->custom_size_or_origin) {
@@ -1124,6 +1125,7 @@ Status ComputeVarDCTEncodingData(const FrameHeader& frame_header,
 
   JXL_RETURN_IF_ERROR(
       ComputeARHeuristics(frame_header, enc_state, orig_opsin, rect, pool));
+  
 
   JXL_RETURN_IF_ERROR(ComputeACMetadata(pool, enc_state, enc_modular));
 
@@ -1562,15 +1564,15 @@ Status ComputeEncodingData(
   if (!jpeg_data) {
     if (frame_header.color_transform == ColorTransform::kXYB &&
         frame_info.ib_needs_color_transform) {
-      if (frame_header.encoding == FrameEncoding::kVarDCT &&
-          cparams.speed_tier <= SpeedTier::kKitten) {
-        JXL_ASSIGN_OR_RETURN(linear_storage,
-                             Image3F::Create(memory_manager, patch_rect.xsize(),
-                                             patch_rect.ysize()));
-        linear = &linear_storage;
-      }
-      JXL_RETURN_IF_ERROR(ToXYB(c_enc, metadata->m.IntensityTarget(), black,
-                                pool, &color, cms, linear));
+      // if (frame_header.encoding == FrameEncoding::kVarDCT &&
+      //     cparams.speed_tier <= SpeedTier::kKitten) {
+      //   JXL_ASSIGN_OR_RETURN(linear_storage,
+      //                        Image3F::Create(memory_manager, patch_rect.xsize(),
+      //                                        patch_rect.ysize()));
+      //   linear = &linear_storage;
+      // }
+      // JXL_RETURN_IF_ERROR(ToXYB(c_enc, metadata->m.IntensityTarget(), black,
+      //                           pool, &color, cms, linear));
     } else {
       // Nothing to do.
       // RGB or YCbCr: forward YCbCr is not implemented, this is only used
@@ -1762,6 +1764,7 @@ bool CanDoStreamingEncoding(const CompressParams& cparams,
                             const FrameInfo& frame_info,
                             const CodecMetadata& metadata,
                             const JxlEncoderChunkedFrameAdapter& frame_data) {
+  return false;
   if (cparams.buffering == 0) {
     return false;
   }
@@ -2144,12 +2147,21 @@ JXL_NOINLINE Status EncodeFrameStreaming(
 
 Status EncodeFrameOneShot(JxlMemoryManager* memory_manager,
                           const CompressParams& cparams,
-                          const FrameInfo& frame_info,
+                          const FrameInfo& frame_info_x,
                           const CodecMetadata* metadata,
                           JxlEncoderChunkedFrameAdapter& frame_data,
                           const JxlCmsInterface& cms, ThreadPool* pool,
                           JxlEncoderOutputProcessorWrapper* output_processor,
                           AuxOut* aux_out) {
+  static bool is_first_frame = true;
+  FrameInfo frame_info = frame_info_x;
+  if (is_first_frame) {
+    frame_info.save_before_color_transform = true;
+    frame_info.save_as_reference = 1;
+    frame_info.ib_needs_color_transform = false;
+    frame_info.frame_type = FrameType::kReferenceOnly;
+    is_first_frame = false;
+  }
   auto enc_state = jxl::make_unique<PassesEncoderState>(memory_manager);
   SetProgressiveMode(cparams, &enc_state->progressive_splitter);
   FrameHeader frame_header(metadata);

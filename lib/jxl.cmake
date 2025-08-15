@@ -293,3 +293,11 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/jxl/libjxl.pc.in"
                "libjxl.pc" @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libjxl.pc"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
+
+
+add_executable(
+  my_encoder
+  jxl/my_encoder.cpp
+)
+
+target_link_libraries(my_encoder jxl-internal)
